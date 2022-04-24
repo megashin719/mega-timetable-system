@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <meta charset="UTF-8" />
+    <?!= HtmlService.createHtmlOutputFromFile('style.css').getContent(); ?>
+  </head>
+  <body>
+    <header>
+      <h1 class = "title">第63回聖光祭 統一シフト</h1>
+      
+      <div id="user_select"></div>
+      
+      <div class="person_select">
+        <p>表示方法</p>
+        <div class="cp_ipselect">
+          <select class="cp_sl06" id="display_select" >
+            <option value="person">個人</option>
+            <option value="group">団体</option>
+          </select>
+          <span class="cp_sl06_highlight"></span>
+          <span class="cp_sl06_selectbar"></span>
+        </div>
+      </div>
+
+      <div class="day">
+        <p>日数</p>
+        <div class="cp_ipselect1 cp_sl03">
+          <select id="day_select" required>
+            <option value="1">1日目</option>
+            <option value="2">2日目</option>
+          </select>
+        </div>
+      </div>
+    </header>
+     
+    <h2 id="whose_shift"></h2>
+    <div id="shifts"></div>
+
+    <script>
+      const daySelector = document.getElementById("day_select");
+      const displaySelector = document.getElementById("display_select");
+      let exhibitionList = ["魔女卓", "ぶいえいす", "地歴部", "コン部", "交研", "生物部", "地天部", "キック", "エース", "物科部", "剣道部", "聖光道場", "美術部", "リア盤", "トリハ", "数研", "ボルぽこ", "人狼", "ガンダム", "ポケセン", "ごと研", "古本市", "クイ研", "Disney", "ボドゲ", "かるた", "文芸", "英語劇", "日本語デ", "TCG", "SeSDA", "ぎゃんぶる", "プロ研", "駄洒落", "生徒会", "P!NTO", "インアク"];
+      let departmentList = ["管理", "装飾", "技術", "演出", "外務", "企画", "放送", "美化", "展示", "会計", "食品"];
+      let performanceList = ["Mサロ", "弦オケ", "吹部", "グリー", "英語劇", "Eスポ", "パフォ", "のど自慢", "Mr.聖光", "ダンス", "漫才"];
+      let foodStoreList = ["焼き鳥","餃子","フランク","ドリンク","塩焼きそば","パンケーキ","わたあめ","ワッフル","音楽喫茶","駅弁"];
+      let groups = exhibitionList.concat(departmentList).concat(foodStoreList);
+
+      let displayingStudentNumber;
+      let displayingGroupName = groups[0];
+
+
+      window.onload = () => {
+        google.script.run.withSuccessHandler((userMailAddress) => {
+            displayingStudentNumber = String(userMailAddress).substr(0, 5);
+            whose_shift.innerText = "" + displayingStudentNumber + "のシフト";
+            changeUI();
+            updatePage();
+        }).getMailAddress();
+      }
+
+      document.addEventListener("click", (e) => {
+        if (e.target && e.target.id != "studentID_enter") {
+          return;
+        }
+        const newNumber = document.getElementById("studentID_textBox").value;
+
+        displayingStudentNumber = newNumber;
+        updatePage();
+      });
+
+      document.addEventListener("change", (e) => {
+        if (e.target && e.target.id != "group_select") {
+          return;
+        }
+        displayingGroupName = document.getElementById("group_select").value;
+        updatePage();
+      });
+
+      daySelector.addEventListener("change", () => {
+        updatePage();
+      });
+
+      displaySelector.addEventListener("change", () => {
+        changeUI();
+        updatePage();
+      });
+
+      function makeTable(users){
+        const shiftTable = document.createElement("table");
+        
+        //ヘッダー作成部
+        const tableHeader = document.createElement("thead");
+        tableHeaderList = ["名前", "所属"];
+        for(let i = 3; i < 51; i++){
+          const minutes = ((i - 3) % 6) * 10 == 0 ? "00" : String(((i - 3) % 6) * 10);
+          tableHeaderList.push(String(Math.floor(9 + (i - 3) / 6)) + ":" + minutes);
+        }
+        for(let i in tableHeaderList){
+          const newHeader = document.createElement("th");
+          newHeader.innerText = tableHeaderList[i];
+          tableHeader.appendChild(newHeader);
+        }
+        shiftTable.appendChild(tableHeader);
+
+        //実際の表
+        const tableBody = document.createElement("tbody");
+        for(let user of users){
+          const personRow = document.createElement("tr");
+
+          //名前
+          const nameCell = document.createElement("td");
+          nameCell.innerText = user.name;
+          nameCell.className = "shift_box";
+          personRow.appendChild(nameCell);
+
+          //所属
+          const belongsCell = document.createElement("td");
+          belongsCell.innerText = user.belongs;
+          belongsCell.className = "shift_box";
+          personRow.appendChild(belongsCell);
+
+          //シフト
+          for(let i = 0; i < user.shifts.length; i++){
+            const shiftCell = document.createElement("td");
+            shiftCell.innerText = user.shifts[i];
+            if(user.shifts[i] != ""){
+              shiftCell.className = "shift_box";
+            }
+
+            //連結処理
+            let colSpanTimes = 1;
+            while((user.shifts[i] == user.shifts[i+1]) && (i < user.shifts.length)){
+              colSpanTimes++;
+              i++;
+            }
+            shiftCell.colSpan = String(colSpanTimes);
+
+            personRow.appendChild(shiftCell);
+          }
+          shiftTable.appendChild(personRow);
+        }
+        shifts.appendChild(shiftTable);
+      }
+
+      function updatePagePerson(){
+        deleteAllChild(shifts);
+        whose_shift.innerText = "" + displayingStudentNumber + "のシフト";
+
+        google.script.run.withSuccessHandler((user) => {
+          makeTable([user]);
+        }).getUser(displayingStudentNumber, day_select.value);
+      }
+
+      function updatePageGroup(){
+        deleteAllChild(shifts);
+        whose_shift.innerText = "「" + displayingGroupName + "」のシフト一覧";
+
+        google.script.run.withSuccessHandler((users) => {
+          makeTable(users);
+        }).getUsersByGroup(document.getElementById("group_select").value,daySelector.value);
+      }
+
+      function changeUIToPerson() {
+        deleteAllChild(user_select);
+
+        const label = document.createElement("p");
+        label.innerText = "他の人のシフト";
+        user_select.appendChild(label);
+
+        const studentID_textBox = document.createElement("input");
+        studentID_textBox.id = "studentID_textBox";
+        studentID_textBox.type = "number";
+        studentID_textBox.placeholder = "学籍番号（半角）";
+        user_select.appendChild(studentID_textBox);
+
+        const studentID_enter = document.createElement("button");
+        studentID_enter.id = "studentID_enter";
+        studentID_enter.innerText = "確定";
+        user_select.appendChild(studentID_enter);
+      }
+
+      function changeUIToGroup() {
+        deleteAllChild(user_select);
+
+        const label = document.createElement("p");
+        label.innerText = "団体";
+        user_select.appendChild(label);
+
+        const group_select = document.createElement("select");
+        group_select.id = "group_select";
+
+        for (let i = 0; i < groups.length; i++) {
+          const group_options = document.createElement("option");
+          group_options.innerText = groups[i];
+          group_options.value = groups[i];
+          if (groups[i] == displayingGroupName) {
+            group_options.selected = true;
+          }
+          group_select.appendChild(group_options);
+        }
+        user_select.appendChild(group_select);
+      }
+
+      function changeUI() {
+        if (displaySelector.value == "group") {
+          changeUIToGroup();
+        } else {
+          changeUIToPerson();
+        }
+      }
+
+      function updatePage() {
+        if (displaySelector.value == "group") {
+          updatePageGroup();
+        } else {
+          updatePagePerson();
+        }
+      }
+
+      function deleteAllChild(parent){
+        while (parent.lastChild) {
+          parent.removeChild(parent.lastChild);
+        }
+      }
+
+      function getParam(name){
+        const params = new URLSearchParams(location.search.slice(1));
+        return params.get(name);
+      }
+    </script>
+  </body>
+</html>
